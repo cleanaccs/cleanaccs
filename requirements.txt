@@ -1,0 +1,6 @@
+telethon
+python-dotenv
+python-docx
+psycopg2-binary
+pytz
+pyyaml
