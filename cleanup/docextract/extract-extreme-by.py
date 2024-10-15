@@ -1,6 +1,6 @@
-import json
 import re
 import string
+import os
 
 import docx
 from docx.document import Document
@@ -8,8 +8,8 @@ from docx.oxml import CT_Tbl, CT_P
 from docx.table import Table, _Cell
 from docx.text.paragraph import Paragraph
 
-from channel import ScanData, ScanDataType
-
+from scan_data import ScanData, ScanDataType
+from cleanup.config.scan_config import load_config
 
 def iterate_block_items(parent):
     if isinstance(parent, Document):
@@ -25,18 +25,14 @@ def iterate_block_items(parent):
         elif isinstance(child, CT_Tbl):
             yield Table(child, parent)
 
-
 def iterate_text(doc):
     for block in iterate_block_items(doc):
         if isinstance(block, Paragraph):
-            # Process text in paragraphs
             yield block.text
         elif isinstance(block, Table):
-            # Process text in table cells
             for row in block.rows:
                 for cell in row.cells:
                     yield cell.text
-                    # Recursively process text in nested tables
                     for nested_block in iterate_block_items(cell):
                         if isinstance(nested_block, Paragraph):
                             yield nested_block.text
@@ -45,38 +41,42 @@ def iterate_text(doc):
                                 for nested_cell in nested_row.cells:
                                     yield nested_cell.text
 
-
-def save_doc_to_plain(doc_path, output_file):
-    doc = docx.Document(doc_path)
-
-    lines = set()
-    with open(output_file, 'w') as file:
-        for text in filter(filter_line, iterate_text(doc)):
-            if text not in lines:
-                file.write(text + "\n")
-                lines.add(text)
-
-
 def filter_line(line):
     if line.startswith("Решение суда") or (line.startswith("от") or line.startswith("года.")) or line.startswith(
             'Подлежит немедленному исполнению') or not len(line.strip()):
         return False
     return True
 
+def save_data_to_files(doc_name, mentions, config):
+    base_name = os.path.splitext(doc_name)[0]
+    scan_data_dir = config.paths.scan_data_dir
+    suffixes = config.paths.scan_data_suffixes
 
-def extract_telegram_mentions(doc_path, output_file):
-    # Load the document
+    data_files = {
+        ScanDataType.TG_USER_NAME: os.path.join(scan_data_dir, f"{base_name}-{suffixes.telegram_user_names}"),
+        ScanDataType.TG_USERNAME: os.path.join(scan_data_dir, f"{base_name}-{suffixes.telegram_usernames}"),
+        ScanDataType.TG_ID: os.path.join(scan_data_dir, f"{base_name}-{suffixes.telegram_ids}"),
+        ScanDataType.TG_URL: os.path.join(scan_data_dir, f"{base_name}-{suffixes.telegram_urls}"),
+        ScanDataType.INSTAGRAM_NAME: os.path.join(scan_data_dir, f"{base_name}-{suffixes.instagram_names}"),
+        ScanDataType.INSTAGRAM_USERNAME: os.path.join(scan_data_dir, f"{base_name}-{suffixes.instagram_usernames}")
+    }
+
+    data_dict = {key: [] for key in data_files.keys()}
+
+    for mention in mentions:
+        data_dict[mention.data_type].append(mention.to_dict())
+
+    for data_type, file_path in data_files.items():
+        with open(file_path, 'w') as file:
+            for data in data_dict[data_type]:
+                file.write(f"{data['data']}\n")
+
+def extract_telegram_mentions(doc_path, config):
     doc = docx.Document(doc_path)
-
-    # Regex patterns to identify Telegram cells and extract data
-    telegram_cell_pattern = re.compile(r'(telegram|телеграм|t\.me)', re.IGNORECASE)
-
     mentions = []
     processed_lines = set()
 
     for cell_text in iterate_text(doc):
-        # Check if the cell contains Telegram-related information
-        # Split the cell text into lines and treat each line separately
         lines = cell_text.splitlines()
         for raw_line in filter(filter_line, lines):
             line = raw_line.strip()
@@ -90,13 +90,8 @@ def extract_telegram_mentions(doc_path, output_file):
             if new_mentions:
                 mentions.extend(new_mentions)
 
-    # Write the results to the output file in JSON format
-    with open(output_file, 'w') as file:
-        json.dump([chat.to_dict() for chat in mentions], file, ensure_ascii=False, indent=2)
-
-    # Print the number of mentions found
+    save_data_to_files(os.path.basename(doc_path), mentions, config)
     print(f"Number of mentions found: {len(mentions)}")
-
 
 def has_tg_mention(line):
     line_lower = line.lower()
@@ -105,13 +100,10 @@ def has_tg_mention(line):
             "телеграм" in line_lower or
             re.search(r't\.me/([a-zA-Z0-9._]+)', line_lower) or
             re.search(r'ID.*?(\d+)', line_lower))
-    # re.search(r'@(\w+)', line)
-
 
 common_mentions = ["telegram", "facebook", "instagram", "вконтакте", "vk", "twitter", "youtube", "joinchat",
                    "одноклассники", "tiktok", 'tik-tok', 'Tik-Ток', "addstikers", "addstickers",
                    "belarus"]
-
 
 def extract_urls(line: string):
     if not "интернет-сайт" in line.lower():
@@ -125,11 +117,9 @@ def extract_urls(line: string):
         data_type=ScanDataType.TG_URL
     ), found_urls))
 
-
 def clear_url(line):
     line = re.sub(r'((http|https)://)?', '', line)
     return re.sub(r'www.', '', line)
-
 
 def filter_mentions(mentions):
     def filter_mention(line):
@@ -140,7 +130,6 @@ def filter_mentions(mentions):
 
     return filter_mention
 
-
 def extract_tg_names(line):
     if not has_tg_mention(line):
         return []
@@ -149,7 +138,6 @@ def extract_tg_names(line):
         data=x,
         data_type=ScanDataType.TG_USER_NAME
     ), list(chat_name_pattern.findall(line)))
-
 
 def extract_tg_usernames(line):
     if not has_tg_mention(line):
@@ -161,7 +149,6 @@ def extract_tg_usernames(line):
         data_type=ScanDataType.TG_USERNAME
     ), list(filter(lambda x: len(x) > 2, username_pattern.findall(line) + username_pattern2))))
 
-
 def extract_tg_ids(line):
     if not has_tg_mention(line):
         return []
@@ -171,11 +158,9 @@ def extract_tg_ids(line):
         data_type=ScanDataType.TG_ID
     ), list(id_pattern.findall(line))))
 
-
 def has_instagram_mention(line):
     return "instagram" in line.lower() or "инстаграм" in line.lower() or re.search(r'instagram.com/([a-zA-Z0-9._]+)',
                                                                                    line)
-
 
 def extract_instagram_names(line):
     if not has_instagram_mention(line):
@@ -186,7 +171,6 @@ def extract_instagram_names(line):
         data_type=ScanDataType.INSTAGRAM_NAME
     ), list(chat_name_pattern.findall(line))))
 
-
 def extract_instagram_usernames(line):
     if not has_instagram_mention(line):
         return []
@@ -196,7 +180,6 @@ def extract_instagram_usernames(line):
         data=x,
         data_type=ScanDataType.INSTAGRAM_USERNAME
     ), list(username_pattern.findall(line)) + username_pattern2))
-
 
 def process_line(line):
     found = []
@@ -211,24 +194,17 @@ def process_line(line):
     found = filter(
         lambda x: len(x.data) > 3 and
                   x.data.lower() not in ["", "telegram", "facebook", "instagram", "вконтакте",
-                                             "vk", "twitter",
-                                             "youtube", "joinchat", "одноклассники", "tiktok",
-                                             'tik-tok', 'Tik-Ток', "addstikers", "addstickers",
-                                             "lida", "user", "belarus", "youtube.com", "anya", "новы", "суд",
-                                             "alexander", "most", "explore", "gmail.com", "tik tok", "ivan",
-                                             "настоящее время"],
+                                         "vk", "twitter",
+                                         "youtube", "joinchat", "одноклассники", "tiktok",
+                                         'tik-tok', 'Tik-Ток', "addstikers", "addstickers",
+                                         "lida", "user", "belarus", "youtube.com", "anya", "новы", "суд",
+                                         "alexander", "most", "explore", "gmail.com", "tik tok", "ivan",
+                                         "настоящее время"],
         found)
 
     return found
 
-
 if __name__ == "__main__":
-    # Run the extraction
-    # test_line = "Аккаунт \"belarusla\" социальной сети \"Instagram\", имеющий идентификатор https://www.instagram.com/belarusla?igshid=NDk5N2NIZjQ=."
-    # print(has_instagram_mention(test_line))
-
-    extract_telegram_mentions('extreme-by.docx', 'cache/unwanted_2.json')
-    # print(list(map(lambda x: x.to_str(), extract_instagram_urls(
-    #     )
-    # )))
-    save_doc_to_plain("extreme-by.docx", 'cache/unwanted.txt')
+    config, _ = load_config("config.yaml")
+    extract_telegram_mentions('extreme-by.docx', config)
+    # save_doc_to_plain("extreme-by.docx", 'cache/unwanted.txt')
