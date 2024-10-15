@@ -38,9 +38,10 @@ class ScanDataSuffixesConfig:
         self.telegram_user_names = "tg-user-names.txt"
         self.telegram_usernames = "tg-usernames.txt"
         self.telegram_keywords = "tg-keywords.txt"
-        self.telegram_links = "tg-links.txt"
+        self.telegram_urls = "tg-urls.txt"
         self.instagram_usernames = "ig-usernames.txt"
-        self.instagram_links = "ig-links.txt"
+        self.instagram_urls = "ig-urls.txt"
+        self.instagram_names = "ig-names.txt"
 
 class InstagramConfig:
     def __init__(self):
@@ -86,7 +87,7 @@ class TelegramChannelsSetting(EnabledFlag, AskFlag):
 
 class TelegramMessageChecksConfig:
     def __init__(self):
-        self.links = TelegramMessageCheckSetting(enabled=True, delete=True)
+        self.urls = TelegramMessageCheckSetting(enabled=True, delete=True)
         self.forwards = TelegramMessageCheckSetting(enabled=True, delete=True)
         self.keywords = TelegramMessageCheckSetting(enabled=True, delete=False)
 
@@ -114,9 +115,10 @@ def load_config(filename: str) -> Union[Config, tuple[Config, bool]]:
             config.paths.scan_data_suffixes.telegram_user_names = scan_data_suffixes_data.get('telegram_user_names', "tg-user-names.txt")
             config.paths.scan_data_suffixes.telegram_usernames = scan_data_suffixes_data.get('telegram_usernames', "tg-usernames.txt")
             config.paths.scan_data_suffixes.telegram_keywords = scan_data_suffixes_data.get('telegram_keywords', "tg-keywords.txt")
-            config.paths.scan_data_suffixes.telegram_links = scan_data_suffixes_data.get('telegram_links', "tg-links.txt")
+            config.paths.scan_data_suffixes.telegram_urls = scan_data_suffixes_data.get('telegram_urls', "tg-urls.txt")
             config.paths.scan_data_suffixes.instagram_usernames = scan_data_suffixes_data.get('instagram_usernames', "ig-usernames.txt")
-            config.paths.scan_data_suffixes.instagram_links = scan_data_suffixes_data.get('instagram_links', "ig-links.txt")
+            config.paths.scan_data_suffixes.instagram_urls = scan_data_suffixes_data.get('instagram_urls', "ig-urls.txt")
+            config.paths.scan_data_suffixes.instagram_names = scan_data_suffixes_data.get('instagram_names', "ig-names.txt")
 
             telegram_data = data.get('telegram', {})
             config.telegram.enabled = telegram_data.get('enabled', True)
@@ -146,9 +148,9 @@ def load_config(filename: str) -> Union[Config, tuple[Config, bool]]:
             config.telegram.messages.ask = messages_data.get('ask', False)
 
             checks_data = messages_data.get('checks', {})
-            config.telegram.messages.checks.links.enabled = checks_data.get('links', {}).get('enabled', False)
-            config.telegram.messages.checks.links.delete = checks_data.get('links', {}).get('delete', False)
-            config.telegram.messages.checks.links.ask = checks_data.get('links', {}).get('ask', False)
+            config.telegram.messages.checks.urls.enabled = checks_data.get('urls', {}).get('enabled', False)
+            config.telegram.messages.checks.urls.delete = checks_data.get('urls', {}).get('delete', False)
+            config.telegram.messages.checks.urls.ask = checks_data.get('urls', {}).get('ask', False)
             config.telegram.messages.checks.forwards.enabled = checks_data.get('forwards', {}).get('enabled', False)
             config.telegram.messages.checks.forwards.delete = checks_data.get('forwards', {}).get('delete', False)
             config.telegram.messages.checks.forwards.ask = checks_data.get('forwards', {}).get('ask', False)

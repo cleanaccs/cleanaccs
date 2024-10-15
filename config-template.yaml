@@ -6,10 +6,11 @@ paths:
     telegram_user_names: tg-user-names.txt
     telegram_usernames: tg-usernames.txt
     telegram_keywords: tg-keywords.txt
-    telegram_links: tg-links.txt
+    telegram_urls: tg-urls.txt
 
     instagram_usernames: ig-usernames.txt
-    instagram_links: ig-links.txt
+    instagram_urls: ig-urls.txt
+    instagram_names: ig-names.txt
 
 telegram:
   enabled: true

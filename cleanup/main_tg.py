@@ -7,7 +7,7 @@ from telethon.tl.custom import Forward
 from telethon.tl.functions.channels import GetFullChannelRequest
 from telethon.tl.types import User, Chat, Channel
 
-from cleanup.docextract.channel import load_unwanted_materials, MaterialType, UnwantedMaterial
+from cleanup.docextract.channel import load_unwanted_materials, ScanDataType, ScanData
 from cleanup.login_module import get_phone_number, login, create_client
 from cleanup.storage.pg import PostgresStorage
 from cleanup.utils import first_not_null, getattrd
@@ -85,18 +85,18 @@ async def clean_up_telegram(client, dry_run=False):
         chat_username = getattr(chat, 'username', 'unknown')
 
         for material in unwanted_materials:
-            if material.source.to_str() == MaterialType.TG_ID.to_str():
-                idd = int(material.material)
+            if material.data_type.to_str() == ScanDataType.TG_ID.to_str():
+                idd = int(material.data)
                 if chat_id == idd or chat_id == -idd or -idd == 1000000000000 - chat_id:
                     print(f"------------------------------  Found: {dialog_name} (ID {dialog_id}) ------------------------------ ")
                     continue
-            elif material.source.to_str() == MaterialType.TG_USERNAME.to_str():
-                username = material.material
+            elif material.data_type.to_str() == ScanDataType.TG_USERNAME.to_str():
+                username = material.data
                 if chat_username == username:
                     print(f"------------------------------  Found: {dialog_name} (ID {dialog_id}) ------------------------------ ")
                     continue
-            elif material.source.to_str() == MaterialType.TG_NAME.to_str():
-                name = material.material
+            elif material.data_type.to_str() == ScanDataType.TG_USER_NAME.to_str():
+                name = material.data
                 if dialog_name == name:
                     print(f"------------------------------  Found: {dialog_name} (ID {dialog_id}) ------------------------------ ")
                     continue
@@ -173,26 +173,26 @@ async def clean_chat(chat, client, current_user_id, dialog_id, dialog_name, stor
         f"Cleanup complete for chat: {dialog_name}. Total messages processed: {total_messages}, deleted: {total_deleted}")
 
 
-async def check_message_text(chat, client, message, unwanted_materials: list[UnwantedMaterial]):
+async def check_message_text(chat, client, message, unwanted_materials: list[ScanData]):
     text = message.text
     if not text or len(text) < 5:
         return 0
 
     for material in unwanted_materials:
-        source = material.source
-        material = material.material
+        source = material.data_type
+        material = material.data
 
-        if source.to_str() == MaterialType.TG_USERNAME.to_str() or source.to_str() == MaterialType.TG_NAME.to_str():
+        if source.to_str() == ScanDataType.TG_USERNAME.to_str() or source.to_str() == ScanDataType.TG_USER_NAME.to_str():
             if "@" + material in text or "t.me/" + material in text:
                 # if material in text:
                 if await prompt_delete_message(chat, client, message, force=True, dryRun=True,
                                                reason=f"========================================== Contains unwanted username: {material} ========================================== "):
                     return 1
 
-        if (source.to_str() == MaterialType.TG_KEYWORD.to_str() or
-                source.to_str() == MaterialType.URL.to_str() or
-                source.to_str() == MaterialType.INSTAGRAM_NAME.to_str() or
-                source.to_str() == MaterialType.INSTAGRAM_LINK.to_str()):
+        if (source.to_str() == ScanDataType.TG_KEYWORD.to_str() or
+                source.to_str() == ScanDataType.TG_URL.to_str() or
+                source.to_str() == ScanDataType.INSTAGRAM_NAME.to_str() or
+                source.to_str() == ScanDataType.INSTAGRAM_USERNAME.to_str()):
             # if "@" + material.username in text or "t.me/" + material.username in text:
             if material in text:
                 if await prompt_delete_message(chat, client, message, force=True, dryRun=True,
@@ -215,7 +215,7 @@ def nullable_int(s):
     return 0
 
 
-async def check_forward_from_unwanted(chat, client, message, unwanted_materials: list[UnwantedMaterial]):
+async def check_forward_from_unwanted(chat, client, message, unwanted_materials: list[ScanData]):
     forward_from = getattr(message, 'forward', None)
     if forward_from and isinstance(forward_from, Forward):
         chat_username = lower(getattrd(forward_from, "chat.username"))
@@ -224,24 +224,24 @@ async def check_forward_from_unwanted(chat, client, message, unwanted_materials:
         channel_id = nullable_int(getattrd(forward_from, 'from_id.channel_id'))
 
         for material in unwanted_materials:
-            if material.source.to_str() == MaterialType.TG_USERNAME.to_str():
-                username = material.material
+            if material.data_type.to_str() == ScanDataType.TG_USERNAME.to_str():
+                username = material.data
                 if chat_username == username or chat_title == username:
                     if await prompt_delete_message(chat, client, message, dryRun=False,
                                                    force=True,
                                                    reason=f"========================================== Forwarded from unwanted channel: {material} =========================================="):
                         return 1
 
-            elif material.source.to_str() == MaterialType.TG_NAME.to_str():
-                name = material.material
+            elif material.data_type.to_str() == ScanDataType.TG_USER_NAME.to_str():
+                name = material.data
                 if chat_username == name or chat_title == name:
                     if await prompt_delete_message(chat, client, message, dryRun=False,
                                                    force=True,
                                                    reason=f"========================================== Forwarded from unwanted channel: {material} =========================================="):
                         return 1
 
-            elif material.source.to_str() == MaterialType.TG_ID.to_str():
-                idd = int(material.material)
+            elif material.data_type.to_str() == ScanDataType.TG_ID.to_str():
+                idd = int(material.data)
                 if chat_id == idd or chat_id == -idd or channel_id == idd or channel_id == -idd or -idd == 1000000000000 - chat_id or -idd == 1000000000000 - channel_id:
                     if await prompt_delete_message(chat, client, message, dryRun=False,
                                                    force=True,
@@ -276,11 +276,11 @@ async def clean_up_from_db(client):
     current_user = await client.get_me()
     current_user_id = getattr(current_user, 'id')
     unwanted_materials = load_unwanted_materials(os.path.join(cache_dir, 'unwanted_2.json'))
-    tg_usernames = [item.material.lower() for item in unwanted_materials if
-                    (item.source.to_str() == MaterialType.TG_USERNAME.to_str())]
+    tg_usernames = [item.data.lower() for item in unwanted_materials if
+                    (item.data_type.to_str() == ScanDataType.TG_USERNAME.to_str())]
     storage = PostgresStorage()
-    mentions = [item.material.lower() for item in unwanted_materials if
-                (item.source.to_str() == MaterialType.TG_KEYWORD.to_str())]
+    mentions = [item.data.lower() for item in unwanted_materials if
+                (item.data_type.to_str() == ScanDataType.TG_KEYWORD.to_str())]
 
     total_count = storage.count_messages(current_user_id)
     count = 0

@@ -3,7 +3,7 @@ import os
 import string
 from datetime import datetime
 
-from cleanup.docextract.channel import MaterialType
+from cleanup.docextract.channel import ScanDataType
 from docextract.channel import load_unwanted_materials
 
 # Set cache directory
@@ -135,7 +135,7 @@ def check_following(folder_name, inst_accounts):
 
 def check_instagram(folder_name):
     unwanted = load_unwanted_materials(os.path.join(cache_dir, "unwanted_2.json"))
-    inst_usernames = [item.material for item in unwanted if (item.source.to_str() == MaterialType.INSTAGRAM_LINK.to_str() or item.source.to_str() == MaterialType.INSTAGRAM_NAME.to_str())]
+    inst_usernames = [item.data for item in unwanted if (item.data_type.to_str() == ScanDataType.INSTAGRAM_USERNAME.to_str() or item.data_type.to_str() == ScanDataType.INSTAGRAM_NAME.to_str())]
     check_reels_comments(folder_name, inst_usernames)
     check_post_comments(folder_name, inst_usernames)
 
