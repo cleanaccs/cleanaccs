@@ -13,7 +13,7 @@ class MaterialType(Enum):
     YOUTUBE_NAME = 8
     YOUTUBE_LINK = 9
     NAME = 10
-    MENTION = 11
+    TG_KEYWORD = 11
 
     @classmethod
     def from_str(cls, value):

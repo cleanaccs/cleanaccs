@@ -189,7 +189,7 @@ async def check_message_text(chat, client, message, unwanted_materials: list[Unw
                                                reason=f"========================================== Contains unwanted username: {material} ========================================== "):
                     return 1
 
-        if (source.to_str() == MaterialType.MENTION.to_str() or
+        if (source.to_str() == MaterialType.TG_KEYWORD.to_str() or
                 source.to_str() == MaterialType.URL.to_str() or
                 source.to_str() == MaterialType.INSTAGRAM_NAME.to_str() or
                 source.to_str() == MaterialType.INSTAGRAM_LINK.to_str()):
@@ -280,7 +280,7 @@ async def clean_up_from_db(client):
                     (item.source.to_str() == MaterialType.TG_USERNAME.to_str())]
     storage = PostgresStorage()
     mentions = [item.material.lower() for item in unwanted_materials if
-                (item.source.to_str() == MaterialType.MENTION.to_str())]
+                (item.source.to_str() == MaterialType.TG_KEYWORD.to_str())]
 
     total_count = storage.count_messages(current_user_id)
     count = 0

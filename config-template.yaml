@@ -1,0 +1,75 @@
+paths:
+  cache_dir: .cache
+  scan_data_dir: scan-data # paths where scan data will be stored
+  scan_data_suffixes:
+    telegram_ids: tg-ids.txt
+    telegram_user_names: tg-user-names.txt
+    telegram_usernames: tg-usernames.txt
+    telegram_keywords: tg-keywords.txt
+    telegram_links: tg-links.txt
+
+    instagram_usernames: ig-usernames.txt
+    instagram_links: ig-links.txt
+
+telegram:
+  enabled: true
+
+  # Load in batches in case of large amount of messages
+  # as you may hit Telegram API limits
+  from_date: 2020-01-01
+  to_date: 2022-12-31
+
+  # cache will allow to restore execution if config wasn't changed
+  # but require postgres instance to be available (see docker-compose.yml)
+  cache_peers: true
+  cache_messages: true
+
+  dialogs: # messages will be loaded from dialogs specified below
+    users:
+      enabled: true
+      ask: false
+    chats:
+      enabled: true
+      ask: false
+    channels: # channel in terms of Telegram API are both channels and supergroups with more than ~20 users
+      enabled: true
+      ask: false
+      self_only_after_users_count: 50 # check only self messages if there are more than N users
+      broadcast: false
+
+    checks: # check if user is in specific channel or group
+      enabled: true
+
+  messages:
+    enabled: true # overriden by specific checks
+    delete: false # overriden by specific checks
+    ask: false # overriden by specific checks
+
+    checks:
+      links: # check messages for specific links
+        enabled: true
+        delete: true
+        ask: false
+      forwards: # check if messages are forwarded from specific channels
+        enabled: true
+        delete: true
+        ask: false
+      keywords: # check messages for specific keywords
+        enabled: true
+        delete: false
+        ask: false
+
+instagram:
+  enabled: true
+  data_dir: instagram-user-data
+
+  checks:
+    reels_comments:
+      enabled: true
+    post_comments:
+      enabled: true
+    comments_likes:
+      enabled: true
+    post_likes:
+      enabled: true
+
