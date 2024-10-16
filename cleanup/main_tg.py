@@ -25,6 +25,7 @@ class TelegramScanner:
         self.telegram_config = config.telegram
         self.scan_data = scan_data
         self.cache_storage = PostgresStorage() if self.telegram_config.cache_messages or self.telegram_config.cache_peers else None
+        self.ignored_ids = [int(d.data) for d in scan_data if d.data_type.to_str() == ScanDataType.TG_IGNORED_ID.to_str()]
 
     @staticmethod
     def get_peer_type(chat):
@@ -38,7 +39,7 @@ class TelegramScanner:
 
     def __should_skip_dialog(self, dialog, from_date=None, to_date=None):
         dialog_date = dialog.date.replace(tzinfo=self.utc)
-        return dialog_date < from_date or dialog_date > to_date
+        return dialog.id in self.ignored_ids or dialog_date < from_date or dialog_date > to_date
 
     async def __clean_up_telegram(self, client):
         current_user = await client.get_me()
@@ -61,25 +62,36 @@ class TelegramScanner:
             chat_id = dialog_id
             chat_username = getattr(chat, 'username', 'unknown')
 
-            for material in self.scan_data:
-                if material.data_type.to_str() == ScanDataType.TG_ID.to_str():
-                    idd = int(material.data)
-                    if chat_id == idd or chat_id == -idd or -idd == 1000000000000 - chat_id:
-                        print(
-                            f"------------------------------  Found: {dialog_name} (ID {dialog_id}) ------------------------------ ")
-                        continue
-                elif material.data_type.to_str() == ScanDataType.TG_USERNAME.to_str():
-                    username = material.data
-                    if chat_username == username:
-                        print(
-                            f"------------------------------  Found: {dialog_name} (ID {dialog_id}) ------------------------------ ")
-                        continue
-                elif material.data_type.to_str() == ScanDataType.TG_USER_NAME.to_str():
-                    name = material.data
-                    if dialog_name == name:
-                        print(
-                            f"------------------------------  Found: {dialog_name} (ID {dialog_id}) ------------------------------ ")
-                        continue
+            if isinstance(chat, User) and not self.telegram_config.dialogs.chats.enabled:
+                print(f"Skipping user {dialog_name} (ID {dialog_id})")
+                continue
+            if isinstance(chat, Chat) and not self.telegram_config.dialogs.chats.enabled:
+                print(f"Skipping chat {dialog_name} (ID {dialog_id})")
+                continue
+            if isinstance(chat, Channel) and not self.telegram_config.dialogs.channels.enabled:
+                print(f"Skipping channel {dialog_name} (ID {dialog_id})")
+                continue
+
+            if self.telegram_config.dialogs.checks.enabled:
+                for material in self.scan_data:
+                    if material.data_type.to_str() == ScanDataType.TG_ID.to_str():
+                        idd = int(material.data)
+                        if chat_id == idd or chat_id == -idd or -idd == 1000000000000 - chat_id:
+                            print(
+                                f"------------------------------  Found dialog check violation: {dialog_name} (ID {dialog_id}) ------------------------------ ")
+                            continue
+                    elif material.data_type.to_str() == ScanDataType.TG_USERNAME.to_str():
+                        username = material.data
+                        if chat_username == username:
+                            print(
+                                f"------------------------------  Found dialog check violation: {dialog_name} (ID {dialog_id}) ------------------------------ ")
+                            continue
+                    elif material.data_type.to_str() == ScanDataType.TG_USER_NAME.to_str():
+                        name = material.data
+                        if dialog_name == name:
+                            print(
+                                f"------------------------------  Found dialog check violation: {dialog_name} (ID {dialog_id}) ------------------------------ ")
+                            continue
 
             if self.telegram_config.cache_peers:
                 self.cache_storage.store_peer([{
@@ -107,7 +119,7 @@ class TelegramScanner:
                     self.cache_storage.store_full_chat_data(dialog_id, channel_full_info.to_json(ensure_ascii=False))
                     self.cache_storage.store_users_count(dialog_id, participants_count)
                 filter_user = None
-                if participants_count is not None and participants_count > 50:
+                if participants_count is not None and participants_count > self.telegram_config.dialogs.channels.self_only_after_users_count:
                     filter_user = current_user
                 print(
                     f"Starting processing channel {dialog_name} (ID {dialog_id}), participants count: {participants_count}")

@@ -17,6 +17,7 @@ class ScanDataType(Enum):
     INSTAGRAM_URL = 8
     YOUTUBE_NAME = 9
     YOUTUBE_URL = 10
+    TG_IGNORED_ID = 11
 
     @classmethod
     def from_str(cls, value):

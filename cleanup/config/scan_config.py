@@ -41,6 +41,7 @@ class ScanDataSuffixesConfig:
         self.telegram_usernames = "tg-usernames.txt"
         self.telegram_keywords = "tg-keywords.txt"
         self.telegram_urls = "tg-urls.txt"
+        self.telegram_ignored_ids = "ig-ignored-ids.txt"
         self.instagram_usernames = "ig-usernames.txt"
         self.instagram_urls = "ig-urls.txt"
         self.instagram_names = "ig-names.txt"
@@ -104,7 +105,7 @@ class TelegramMessageCheckSetting(EnabledFlag, DeleteFlag, AskFlag):
 def load_config(filename: str) -> Union[Config, tuple[Config, bool]]:
     config = Config()
     try:
-        with open(filename, 'r') as file:
+        with (open(filename, 'r') as file):
             data = yaml.safe_load(file)
             if data is None:
                 return config, False
@@ -118,6 +119,7 @@ def load_config(filename: str) -> Union[Config, tuple[Config, bool]]:
             config.paths.scan_data_suffixes.telegram_usernames = scan_data_suffixes_data.get('telegram_usernames', "tg-usernames.txt")
             config.paths.scan_data_suffixes.telegram_keywords = scan_data_suffixes_data.get('telegram_keywords', "tg-keywords.txt")
             config.paths.scan_data_suffixes.telegram_urls = scan_data_suffixes_data.get('telegram_urls', "tg-urls.txt")
+            config.paths.scan_data_suffixes.telegram_ignored_ids = scan_data_suffixes_data.get('telegram_ignored_ids', config.paths.scan_data_suffixes.telegram_ignored_ids)
             config.paths.scan_data_suffixes.instagram_usernames = scan_data_suffixes_data.get('instagram_usernames', "ig-usernames.txt")
             config.paths.scan_data_suffixes.instagram_urls = scan_data_suffixes_data.get('instagram_urls', "ig-urls.txt")
             config.paths.scan_data_suffixes.instagram_names = scan_data_suffixes_data.get('instagram_names', "ig-names.txt")

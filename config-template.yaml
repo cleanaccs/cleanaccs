@@ -1,12 +1,13 @@
 paths:
   cache_dir: .cache
-  scan_data_dir: scan-data # paths where scan data will be stored
+  scan_data_dir: scan-data # paths where scan data should be stored
   scan_data_suffixes:
     telegram_ids: tg-ids.txt
     telegram_user_names: tg-user-names.txt
     telegram_usernames: tg-usernames.txt
     telegram_keywords: tg-keywords.txt
     telegram_urls: tg-urls.txt
+    telegram_ignored_ids: tg-ignored-ids.txt
 
     instagram_usernames: ig-usernames.txt
     instagram_urls: ig-urls.txt
