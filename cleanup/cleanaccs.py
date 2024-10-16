@@ -2,7 +2,7 @@ import os
 from datetime import datetime, timedelta, timezone, date
 import logging
 
-from cleanup.docextract.scan_data import load_scan_data
+from cleanup.docextract.scan_data import ScanData
 from cleanup.main_tg import TelegramScanner
 from config.scan_config import load_config
 from config.logger import setup_logger
@@ -19,9 +19,9 @@ if __name__ == "__main__":
         logging.warning("Config file config.yaml not found, using default configuration.")
     logging.info("Running scan with config:\n%s", config)
 
-    scan_data = load_scan_data(config)
+    scan_data = ScanData(config).load()
 
-    if len(scan_data) == 0:
+    if len(scan_data.data) == 0:
         logging.warning("No scan data found, exiting.")
         exit()
 

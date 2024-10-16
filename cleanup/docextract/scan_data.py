@@ -2,6 +2,7 @@ import os
 import string
 from enum import Enum
 import glob
+from typing import Tuple, List, Dict, Any
 
 from cleanup.config.scan_config import load_config, Config
 
@@ -31,7 +32,7 @@ class ScanDataType(Enum):
         return self.name
 
 
-class ScanData:
+class ScanDataEntry:
     def __init__(self, data: string, data_type: ScanDataType):
         try:
             if data[0] == '@':
@@ -61,36 +62,62 @@ class ScanData:
         return f"{self.data} ({self.data_type.to_str()})"
 
 
-def load_scan_data(config: Config) -> list[ScanData]:
-    scan_data_dir = config.paths.scan_data_dir
-    suffixes = config.paths.scan_data_suffixes
+class ScanData:
+    def __init__(self, config: Config):
+        self.config = config
+        self.data: list[ScanDataEntry] = []
+        self.data_by_type: dict[ScanDataType, list[ScanDataEntry]] = {}
 
-    data_files = {
-        ScanDataType.TG_ID: suffixes.telegram_ids,
-        ScanDataType.TG_USER_NAME: suffixes.telegram_user_names,
-        ScanDataType.TG_USERNAME: suffixes.telegram_usernames,
-        ScanDataType.TG_KEYWORD: suffixes.telegram_keywords,
-        ScanDataType.TG_URL: suffixes.telegram_urls,
-        ScanDataType.INSTAGRAM_USERNAME: suffixes.instagram_usernames,
-        ScanDataType.INSTAGRAM_URL: suffixes.instagram_urls,
-        ScanDataType.INSTAGRAM_NAME: suffixes.instagram_names
-    }
 
-    scan_data = []
+    def __load_scan_data(self) -> tuple[list[ScanDataEntry], dict[ScanDataType, list[ScanDataEntry]]]:
+        scan_data_dir = self.config.paths.scan_data_dir
+        suffixes = self.config.paths.scan_data_suffixes
 
-    for data_type, suffix in data_files.items():
-        pattern = os.path.join(scan_data_dir, f"*{suffix}")
-        for file_path in glob.glob(pattern):
-            with open(file_path, 'r') as file:
-                for line in file:
-                    data = line.strip()
-                    if data:
-                        scan_data.append(ScanData(data, data_type))
+        data_files = {
+            ScanDataType.TG_ID: suffixes.telegram_ids,
+            ScanDataType.TG_USER_NAME: suffixes.telegram_user_names,
+            ScanDataType.TG_USERNAME: suffixes.telegram_usernames,
+            ScanDataType.TG_KEYWORD: suffixes.telegram_keywords,
+            ScanDataType.TG_URL: suffixes.telegram_urls,
+            ScanDataType.TG_IGNORED_ID: suffixes.telegram_ignored_ids,
+            ScanDataType.INSTAGRAM_USERNAME: suffixes.instagram_usernames,
+            ScanDataType.INSTAGRAM_URL: suffixes.instagram_urls,
+            ScanDataType.INSTAGRAM_NAME: suffixes.instagram_names
+        }
 
-    return scan_data
+        scan_data_entries = []
+        scan_data_by_type = {
+            ScanDataType.TG_ID: [],
+            ScanDataType.TG_USER_NAME: [],
+            ScanDataType.TG_USERNAME: [],
+            ScanDataType.TG_KEYWORD: [],
+            ScanDataType.TG_URL: [],
+            ScanDataType.TG_IGNORED_ID: [],
+            ScanDataType.INSTAGRAM_USERNAME: [],
+            ScanDataType.INSTAGRAM_URL: [],
+            ScanDataType.INSTAGRAM_NAME: [],
+        }
+
+        for data_type, suffix in data_files.items():
+            pattern = os.path.join(scan_data_dir, f"*{suffix}")
+            for file_path in glob.glob(pattern):
+                with open(file_path, 'r') as file:
+                    for line in file:
+                        data = line.strip()
+                        if data:
+                            entry = ScanDataEntry(data, data_type)
+                            scan_data_entries.append(entry)
+                            scan_data_by_type[data_type].append(entry)
+
+        return scan_data_entries, scan_data_by_type
+
+    def load(self):
+        self.data, self.data_by_type = self.__load_scan_data()
+        return self
+
 
 if __name__ == "__main__":
     config, config_exists = load_config("config.yaml")
-    scan_data = load_scan_data(config)
-    for material in scan_data:
+    scan_data = ScanData(config)
+    for material in scan_data.data:
         print(material)

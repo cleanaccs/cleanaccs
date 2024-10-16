@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class TelegramScanner:
-    def __init__(self, config: Config, scan_data: list[ScanData]):
+    def __init__(self, config: Config, scan_data: ScanData):
         if not scan_data:
             raise ValueError("No scan data provided.")
         if not config.telegram.api_id or not config.telegram.api_hash:
@@ -25,7 +25,7 @@ class TelegramScanner:
         self.telegram_config = config.telegram
         self.scan_data = scan_data
         self.cache_storage = PostgresStorage() if self.telegram_config.cache_messages or self.telegram_config.cache_peers else None
-        self.ignored_ids = [int(d.data) for d in scan_data if d.data_type.to_str() == ScanDataType.TG_IGNORED_ID.to_str()]
+        self.ignored_ids = [int(d.data) for d in scan_data.data_by_type[ScanDataType.TG_IGNORED_ID]]
 
     @staticmethod
     def get_peer_type(chat):
@@ -62,7 +62,7 @@ class TelegramScanner:
             chat_id = dialog_id
             chat_username = getattr(chat, 'username', 'unknown')
 
-            if isinstance(chat, User) and not self.telegram_config.dialogs.chats.enabled:
+            if isinstance(chat, User) and not self.telegram_config.dialogs.users.enabled:
                 print(f"Skipping user {dialog_name} (ID {dialog_id})")
                 continue
             if isinstance(chat, Chat) and not self.telegram_config.dialogs.chats.enabled:
@@ -73,7 +73,7 @@ class TelegramScanner:
                 continue
 
             if self.telegram_config.dialogs.checks.enabled:
-                for material in self.scan_data:
+                for material in self.scan_data.data:
                     if material.data_type.to_str() == ScanDataType.TG_ID.to_str():
                         idd = int(material.data)
                         if chat_id == idd or chat_id == -idd or -idd == 1000000000000 - chat_id:
@@ -103,12 +103,23 @@ class TelegramScanner:
                     'data': chat.to_json(ensure_ascii=False)
                 }])
 
-            if isinstance(chat, (User, Chat)):
+            if isinstance(chat, User):
+                if not self.telegram_config.dialogs.users.enabled:
+                    continue
+                print(f"Starting processing chat with user {dialog_name} (ID {dialog_id})")
+                await self.clean_chat(chat, client, current_user_id, dialog_id, dialog_name)
+                if self.telegram_config.cache_peers:
+                    self.cache_storage.mark_dialog_processed(dialog_id, current_user_id)
+            elif isinstance(chat, Chat):
+                if not self.telegram_config.dialogs.chats.enabled:
+                    continue
                 print(f"Starting processing chat {dialog_name} (ID {dialog_id})")
                 await self.clean_chat(chat, client, current_user_id, dialog_id, dialog_name)
                 if self.telegram_config.cache_peers:
                     self.cache_storage.mark_dialog_processed(dialog_id, current_user_id)
             elif isinstance(chat, Channel):
+                if not self.telegram_config.dialogs.chats.enabled:
+                    continue
                 if getattrd(chat, 'broadcast'):
                     print(f"Skipping broadcast channel {dialog_name} (ID {dialog_id})")
                     continue
@@ -147,9 +158,17 @@ class TelegramScanner:
                     'message': message.to_json(ensure_ascii=False),
                 }])
             total_messages += 1
-            deleted = await self.check_forward_from_unwanted(chat, client, message)
+            deleted = False
+            if self.telegram_config.messages.checks.forwards.enabled:
+                deleted_count = await self.check_forward_from_unwanted(chat, client, message)
+                deleted = deleted_count > 0
+
             if not deleted:
-                deleted = await self.check_message_text(chat, client, message)
+                if self.telegram_config.messages.enabled and (
+                        self.telegram_config.messages.checks.urls.enabled or self.telegram_config.messages.checks.keywords.enabled):
+                    deleted_count = await self.check_message_text(chat, client, message)
+                    deleted = deleted_count > 0
+
             if deleted:
                 total_deleted += 1
                 if self.telegram_config.cache_messages:
@@ -165,21 +184,33 @@ class TelegramScanner:
         if not text or len(text) < 5:
             return 0
 
-        for material in self.scan_data:
-            source = material.data_type
-            material = material.data
-
-            if source.to_str() == ScanDataType.TG_USERNAME.to_str() or source.to_str() == ScanDataType.TG_USER_NAME.to_str():
-                if "@" + material in text or "t.me/" + material in text:
-                    if await self.prompt_delete_message(chat, client, message, force=True, dryRun=True,
-                                                        reason=f"========================================== Contains unwanted username: {material} ========================================== "):
+        if self.telegram_config.messages.checks.accounts_references.enabled:
+            for scan_entry in self.scan_data.data_by_type[ScanDataType.TG_USERNAME] + self.scan_data.data_by_type[ScanDataType.TG_USER_NAME]:
+                username = scan_entry.data
+                if "@" + username in text or "t.me/" + username in text:
+                    if await self.prompt_delete_message(chat, client, message, force=True, delete=self.telegram_config.messages.checks.accounts_references.delete,
+                                                        reason=f"========================================== Contains unwanted username: {username} ========================================== "):
+                        return 1
+            for scan_entry in self.scan_data.data_by_type[ScanDataType.INSTAGRAM_NAME] + self.scan_data.data_by_type[ScanDataType.INSTAGRAM_USERNAME]:
+                if "instagram.com/" + scan_entry.data in text:
+                    if await self.prompt_delete_message(chat, client, message, force=True, delete=self.telegram_config.messages.checks.accounts_references.delete,
+                                                        reason=f"========================================== Contains unwanted Instagram username: {scan_entry.data} ========================================== "):
                         return 1
 
-            if (
-                    source.to_str() == ScanDataType.TG_KEYWORD.to_str() or source.to_str() == ScanDataType.TG_URL.to_str() or source.to_str() == ScanDataType.INSTAGRAM_NAME.to_str() or source.to_str() == ScanDataType.INSTAGRAM_USERNAME.to_str()):
-                if material in text:
-                    if await self.prompt_delete_message(chat, client, message, force=True, dryRun=True,
-                                                        reason=f"========================================== Contains unwanted text or URL: {material} ========================================== "):
+        if self.telegram_config.messages.checks.keywords.enabled:
+            for scan_entry in self.scan_data.data_by_type[ScanDataType.TG_KEYWORD]:
+                keyword = scan_entry.data
+                if keyword in text:
+                    if await self.prompt_delete_message(chat, client, message, force=True, delete=self.telegram_config.messages.checks.keywords.delete,
+                                                        reason=f"========================================== Contains unwanted keyword: {keyword} ========================================== "):
+                        return 1
+
+        if self.telegram_config.messages.checks.urls.enabled:
+            for scan_entry in self.scan_data.data_by_type[ScanDataType.TG_URL]:
+                url = scan_entry.data
+                if url in text:
+                    if await self.prompt_delete_message(chat, client, message, force=True, delete=self.telegram_config.messages.checks.urls.delete,
+                                                        reason=f"========================================== Contains unwanted URL: {url} ========================================== "):
                         return 1
         return 0
 
@@ -205,25 +236,25 @@ class TelegramScanner:
             chat_id = self.nullable_int(getattrd(forward_from, 'chat_id'))
             channel_id = self.nullable_int(getattrd(forward_from, 'from_id.channel_id'))
 
-            for material in self.scan_data:
+            for material in self.scan_data.data:
                 if material.data_type.to_str() == ScanDataType.TG_USERNAME.to_str():
                     username = material.data
                     if chat_username == username or chat_title == username:
-                        if await self.prompt_delete_message(chat, client, message, dryRun=False, force=True,
+                        if await self.prompt_delete_message(chat, client, message, force=True, delete=self.telegram_config.messages.checks.forwards.delete,
                                                             reason=f"========================================== Forwarded from unwanted channel: {material} =========================================="):
                             return 1
 
                 elif material.data_type.to_str() == ScanDataType.TG_USER_NAME.to_str():
                     name = material.data
                     if chat_username == name or chat_title == name:
-                        if await self.prompt_delete_message(chat, client, message, dryRun=False, force=True,
+                        if await self.prompt_delete_message(chat, client, message, force=True, delete=self.telegram_config.messages.checks.forwards.delete,
                                                             reason=f"========================================== Forwarded from unwanted channel: {material} =========================================="):
                             return 1
 
                 elif material.data_type.to_str() == ScanDataType.TG_ID.to_str():
                     idd = int(material.data)
                     if chat_id == idd or chat_id == -idd or channel_id == idd or channel_id == -idd or -idd == 1000000000000 - chat_id or -idd == 1000000000000 - channel_id:
-                        if await self.prompt_delete_message(chat, client, message, dryRun=False, force=True,
+                        if await self.prompt_delete_message(chat, client, message, force=True, delete=self.telegram_config.messages.checks.forwards.delete,
                                                             reason=f"===================== Forwarded from unwanted channel: {material} =========================================="):
                             return 1
 
@@ -233,14 +264,14 @@ class TelegramScanner:
     def get_chat_title(chat):
         return first_not_null(getattrd(chat, 'title'), getattrd(chat, 'name'), getattr(chat, 'username', None))
 
-    async def prompt_delete_message(self, chat, client, message, force=False, reason=None, dryRun=True):
+    async def prompt_delete_message(self, chat, client, message, force=False, reason=None, delete=False):
         chat_username = getattrd(chat, 'username')
         chat_title = self.get_chat_title(chat)
         message_content = message.message.replace("\n", " ")
         print(f"[chat: id={chat.id} @{chat_username} {chat_title}] [message: {message_content}]")
         if reason:
             print(f"Reason: {reason}")
-        if dryRun:
+        if not delete:
             return False
         if force or input("Type any button or type 'no' to skip: ") != "no":
             await client.delete_messages(chat.id, [message.id])

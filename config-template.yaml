@@ -32,37 +32,41 @@ telegram:
   dialogs: # messages will be loaded from dialogs specified below
     users:
       enabled: true
-      ask: false
+#      ask: false
     chats:
       enabled: true
-      ask: false
+#      ask: false
     channels: # channel in terms of Telegram API are both channels and supergroups with more than ~20 users
       enabled: true
-      ask: false
-      self_only_after_users_count: 50 # check only self messages if there are more than N users
-      broadcast: false
+#      ask: false
+      self_only_after_users_count: 25 # check only self messages if there are more than N users
+#      broadcast: false
 
     checks: # check if user is in specific channel or group
       enabled: true
 
   messages:
-    enabled: true # overriden by specific checks
-    delete: false # overriden by specific checks
-    ask: false # overriden by specific checks
+    enabled: true
+    delete: false
+    ask: false
 
     checks:
-      links: # check messages for specific links
+      accounts_references: # check messages for specific accounts references
         enabled: true
         delete: true
-        ask: false
+#        ask: false
+      urls: # check messages for specific links
+        enabled: true
+        delete: true
+#        ask: false
       forwards: # check if messages are forwarded from specific channels
         enabled: true
         delete: true
-        ask: false
+#        ask: false
       keywords: # check messages for specific keywords
         enabled: true
         delete: false
-        ask: false
+#        ask: false
 
 instagram:
   enabled: true

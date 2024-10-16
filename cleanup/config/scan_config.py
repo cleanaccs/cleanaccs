@@ -84,12 +84,13 @@ class TelegramChannelsSetting(EnabledFlag, AskFlag):
     def __init__(self):
         EnabledFlag.__init__(self)
         AskFlag.__init__(self)
-        self.self_only_after_users_count = None
+        self.self_only_after_users_count = 25
         self.broadcast = False
 
 
 class TelegramMessageChecksConfig:
     def __init__(self):
+        self.accounts_references = TelegramMessageCheckSetting(enabled=True, delete=True)
         self.urls = TelegramMessageCheckSetting(enabled=True, delete=True)
         self.forwards = TelegramMessageCheckSetting(enabled=True, delete=True)
         self.keywords = TelegramMessageCheckSetting(enabled=True, delete=False)
@@ -144,7 +145,7 @@ def load_config(filename: str) -> Union[Config, tuple[Config, bool]]:
             config.telegram.dialogs.chats.ask = dialogs_data.get('chats', {}).get('ask', False)
             config.telegram.dialogs.channels.enabled = dialogs_data.get('channels', {}).get('enabled', False)
             config.telegram.dialogs.channels.ask = dialogs_data.get('channels', {}).get('ask', False)
-            config.telegram.dialogs.channels.self_only_after_users_count = dialogs_data.get('channels', {}).get('self_only_after_users_count', None)
+            config.telegram.dialogs.channels.self_only_after_users_count = dialogs_data.get('channels', {}).get('self_only_after_users_count', config.telegram.dialogs.channels.self_only_after_users_count)
             config.telegram.dialogs.channels.broadcast = dialogs_data.get('channels', {}).get('broadcast', False)
             config.telegram.dialogs.checks.enabled = dialogs_data.get('checks', {}).get('enabled', False)
 
@@ -154,6 +155,9 @@ def load_config(filename: str) -> Union[Config, tuple[Config, bool]]:
             config.telegram.messages.ask = messages_data.get('ask', False)
 
             checks_data = messages_data.get('checks', {})
+            config.telegram.messages.checks.accounts_references.enabled = checks_data.get('accounts_references', {}).get('enabled', False)
+            config.telegram.messages.checks.accounts_references.delete = checks_data.get('accounts_references', {}).get('delete', False)
+            config.telegram.messages.checks.accounts_references.ask = checks_data.get('accounts_references', {}).get('ask', False)
             config.telegram.messages.checks.urls.enabled = checks_data.get('urls', {}).get('enabled', False)
             config.telegram.messages.checks.urls.delete = checks_data.get('urls', {}).get('delete', False)
             config.telegram.messages.checks.urls.ask = checks_data.get('urls', {}).get('ask', False)

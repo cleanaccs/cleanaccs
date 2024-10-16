@@ -8,7 +8,7 @@ from docx.oxml import CT_Tbl, CT_P
 from docx.table import Table, _Cell
 from docx.text.paragraph import Paragraph
 
-from scan_data import ScanData, ScanDataType
+from scan_data import ScanDataEntry, ScanDataType
 from cleanup.config.scan_config import load_config
 
 def iterate_block_items(parent):
@@ -112,7 +112,7 @@ def extract_urls(line: string):
         r'(((http|https)://)?[a-zA-Z0-9./?:@\-_=#]+\.([a-zA-Z]){2,6}([a-zA-Z0-9.&/?:@\-_=#])*)')
     found_urls = list(filter(filter_mentions(common_mentions), map(lambda x: x[0], url_pattern.findall(line))))
     found_urls = list(map(clear_url, found_urls))
-    return list(map(lambda x: ScanData(
+    return list(map(lambda x: ScanDataEntry(
         data=x,
         data_type=ScanDataType.TG_URL
     ), found_urls))
@@ -134,7 +134,7 @@ def extract_tg_names(line):
     if not has_tg_mention(line):
         return []
     chat_name_pattern = re.compile(r'"(.*?)"')
-    return map(lambda x: ScanData(
+    return map(lambda x: ScanDataEntry(
         data=x,
         data_type=ScanDataType.TG_USER_NAME
     ), list(chat_name_pattern.findall(line)))
@@ -144,7 +144,7 @@ def extract_tg_usernames(line):
         return []
     username_pattern = re.compile(r't\.me/([a-zA-Z0-9._]+)')
     username_pattern2 = re.findall(r'@([a-zA-Z0-9._]+)', line)
-    return list(map(lambda x: ScanData(
+    return list(map(lambda x: ScanDataEntry(
         data=x,
         data_type=ScanDataType.TG_USERNAME
     ), list(filter(lambda x: len(x) > 2, username_pattern.findall(line) + username_pattern2))))
@@ -153,7 +153,7 @@ def extract_tg_ids(line):
     if not has_tg_mention(line):
         return []
     id_pattern = re.compile(r'ID.*?(\d+)')
-    return list(map(lambda x: ScanData(
+    return list(map(lambda x: ScanDataEntry(
         data=x,
         data_type=ScanDataType.TG_ID
     ), list(id_pattern.findall(line))))
@@ -166,7 +166,7 @@ def extract_instagram_names(line):
     if not has_instagram_mention(line):
         return []
     chat_name_pattern = re.compile(r'"(.*?)"')
-    return list(map(lambda x: ScanData(
+    return list(map(lambda x: ScanDataEntry(
         data=x,
         data_type=ScanDataType.INSTAGRAM_NAME
     ), list(chat_name_pattern.findall(line))))
@@ -176,7 +176,7 @@ def extract_instagram_usernames(line):
         return []
     username_pattern = re.compile(r'instagram.com/([a-zA-Z0-9._]+)')
     username_pattern2 = re.findall(r'@([a-zA-Z0-9._]+)', line)
-    return list(map(lambda x: ScanData(
+    return list(map(lambda x: ScanDataEntry(
         data=x,
         data_type=ScanDataType.INSTAGRAM_USERNAME
     ), list(username_pattern.findall(line)) + username_pattern2))
@@ -199,7 +199,7 @@ def process_line(line):
                                          'tik-tok', 'Tik-Ток', "addstikers", "addstickers",
                                          "lida", "user", "belarus", "youtube.com", "anya", "новы", "суд",
                                          "alexander", "most", "explore", "gmail.com", "tik tok", "ivan",
-                                         "настоящее время"],
+                                         "настоящее время", "artem"],
         found)
 
     return found
