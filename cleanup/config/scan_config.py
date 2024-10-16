@@ -126,10 +126,10 @@ def load_config(filename: str) -> Union[Config, tuple[Config, bool]]:
             config.telegram.enabled = telegram_data.get('enabled', True)
             config.telegram.api_id = telegram_data.get('api_id', config.telegram.api_id)
             config.telegram.api_hash = telegram_data.get('api_hash', config.telegram.api_hash)
-            config.telegram.from_date = telegram_data.get('from_date', None)
+            config.telegram.from_date = telegram_data.get('from_date', config.telegram.from_date)
             if isinstance(config.telegram.from_date, str):
                 config.telegram.from_date = datetime.strptime(config.telegram.from_date, '%Y-%m-%d').replace(tzinfo=timezone.utc)
-            config.telegram.to_date = telegram_data.get('to_date', None)
+            config.telegram.to_date = telegram_data.get('to_date', config.telegram.to_date)
             if isinstance(config.telegram.to_date, str):
                 config.telegram.to_date = datetime.strptime(config.telegram.to_date, '%Y-%m-%d').replace(tzinfo=timezone.utc)
             config.telegram.cache_peers = telegram_data.get('cache_peers', False)

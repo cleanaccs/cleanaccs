@@ -10,7 +10,7 @@ def setup_logger():
     log_filename = f"logs/app_{current_time}.log"
 
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
             logging.FileHandler(log_filename),

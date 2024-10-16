@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone, date
 import logging
 
 from cleanup.docextract.scan_data import load_scan_data
-from cleanup.main_tg import scan_telegram
+from cleanup.main_tg import TelegramScanner
 from config.scan_config import load_config
 from config.logger import setup_logger
 
@@ -28,4 +28,5 @@ if __name__ == "__main__":
     os.makedirs(config.paths.cache_dir, exist_ok=True)
 
     if config.telegram.enabled:
-        scan_telegram(scan_data, config)
+        telegram_scanner = TelegramScanner(config, scan_data)
+        telegram_scanner.scan()
