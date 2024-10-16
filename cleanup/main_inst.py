@@ -3,8 +3,8 @@ import os
 import string
 from datetime import datetime
 
-from cleanup.docextract.channel import ScanDataType
-from docextract.channel import load_unwanted_materials
+from cleanup.docextract.scan_data import ScanDataType
+from docextract.scan_data import load_scan_data
 
 # Set cache directory
 cache_dir = 'cache'
@@ -134,7 +134,7 @@ def check_following(folder_name, inst_accounts):
                 print(f"Follower '{value}' is in the list of specific values. ")
 
 def check_instagram(folder_name):
-    unwanted = load_unwanted_materials(os.path.join(cache_dir, "unwanted_2.json"))
+    unwanted = load_scan_data()
     inst_usernames = [item.data for item in unwanted if (item.data_type.to_str() == ScanDataType.INSTAGRAM_USERNAME.to_str() or item.data_type.to_str() == ScanDataType.INSTAGRAM_NAME.to_str())]
     check_reels_comments(folder_name, inst_usernames)
     check_post_comments(folder_name, inst_usernames)

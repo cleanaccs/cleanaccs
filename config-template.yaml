@@ -15,6 +15,9 @@ paths:
 telegram:
   enabled: true
 
+  api_id:
+  api_hash:
+
   # Load in batches in case of large amount of messages
   # as you may hit Telegram API limits
   from_date: 2020-01-01

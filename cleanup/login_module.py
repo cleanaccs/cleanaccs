@@ -4,14 +4,9 @@ import getpass
 from telethon import TelegramClient
 from telethon.errors import SessionPasswordNeededError
 
-# Set cache directory
-cache_dir = 'cache'
-os.makedirs(cache_dir, exist_ok=True)
+def get_phone_number(cache_dir):
+    last_phone_file = os.path.join(cache_dir, 'last_phone.json')
 
-# Load last used phone number from file
-last_phone_file = os.path.join(cache_dir, 'last_phone.json')
-
-def get_phone_number():
     if os.path.exists(last_phone_file):
         with open(last_phone_file, 'r') as f:
             last_phone = json.load(f).get('phone_number', None)
@@ -39,7 +34,5 @@ async def login(client, phone_number):
         except SessionPasswordNeededError:
             await client.sign_in(password=getpass.getpass("Enter your 2FA password: "))
 
-def create_client(phone_number):
-    api_id = os.getenv('API_ID')
-    api_hash = os.getenv('API_HASH')
+def create_client(phone_number, cache_dir, api_id, api_hash):
     return TelegramClient(f'{cache_dir}/session_{phone_number}', api_id, api_hash)

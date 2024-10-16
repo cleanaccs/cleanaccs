@@ -1,35 +1,18 @@
-import os
 from datetime import datetime
 
 import pytz
-from dotenv import load_dotenv
 from telethon.tl.custom import Forward
 from telethon.tl.functions.channels import GetFullChannelRequest
 from telethon.tl.types import User, Chat, Channel
 
-from cleanup.docextract.channel import load_unwanted_materials, ScanDataType, ScanData
+from cleanup.config.scan_config import TelegramConfig, Config, load_config
+from cleanup.docextract.scan_data import load_scan_data, ScanDataType, ScanData
 from cleanup.login_module import get_phone_number, login, create_client
 from cleanup.storage.pg import PostgresStorage
 from cleanup.utils import first_not_null, getattrd
 
-# Load environment variables from .env file
-load_dotenv()
-
-# Replace these with your own values
-api_id = os.getenv('API_ID')
-api_hash = os.getenv('API_HASH')
-version = "2"
-
-# Set cache directory
-cache_dir = 'cache'
-os.makedirs(cache_dir, exist_ok=True)
-
-# dry_run = True
-
 utc = pytz.UTC
 
-
-# Function to clean up undesired messages
 
 def get_peer_type(chat):
     if isinstance(chat, User):
@@ -41,7 +24,7 @@ def get_peer_type(chat):
     return 'unknown'
 
 
-def should_skip_dialog(dialog):
+def should_skip_dialog(dialog, from_date=None, to_date=None):
     dialog_date = dialog.date.replace(tzinfo=utc)
     return dialog_date < from_date or dialog_date > to_date
 
@@ -50,13 +33,9 @@ from_date = datetime(2018, 1, 1, 0, 0, 0).replace(tzinfo=utc)
 to_date = datetime(2025, 2, 1, 0, 0, 0).replace(tzinfo=utc)
 
 
-async def clean_up_telegram(client, dry_run=False):
-    # Initialize chat cache
-    # chat_cache = ChatCache(os.path.join(cache_dir, 'chat_cache.json'), client)
-    # processed_cache = ProcessedUsersCache(os.path.join(cache_dir, 'processed_cache.json'))
+async def clean_up_telegram(client, scan_data: list[ScanData], config: TelegramConfig):
     current_user = await client.get_me()
     current_user_id = getattr(current_user, 'id')
-    unwanted_materials = load_unwanted_materials(os.path.join(cache_dir, 'unwanted_2.json'))
     storage = PostgresStorage()
 
     # Iterate over all dialogs (chats, groups, channels)
@@ -76,29 +55,30 @@ async def clean_up_telegram(client, dry_run=False):
 
         dialog_name = first_not_null(getattrd(dialog, 'title'), getattrd(dialog, 'name'), get_chat_title(chat),
                                      dialog.id)
-        # if processed_cache.is_processed(chat.id, version):
-        #     continue
 
         print(dialog_name, dialog_id, chat.__class__.__name__)
 
         chat_id = dialog_id
         chat_username = getattr(chat, 'username', 'unknown')
 
-        for material in unwanted_materials:
+        for material in scan_data:
             if material.data_type.to_str() == ScanDataType.TG_ID.to_str():
                 idd = int(material.data)
                 if chat_id == idd or chat_id == -idd or -idd == 1000000000000 - chat_id:
-                    print(f"------------------------------  Found: {dialog_name} (ID {dialog_id}) ------------------------------ ")
+                    print(
+                        f"------------------------------  Found: {dialog_name} (ID {dialog_id}) ------------------------------ ")
                     continue
             elif material.data_type.to_str() == ScanDataType.TG_USERNAME.to_str():
                 username = material.data
                 if chat_username == username:
-                    print(f"------------------------------  Found: {dialog_name} (ID {dialog_id}) ------------------------------ ")
+                    print(
+                        f"------------------------------  Found: {dialog_name} (ID {dialog_id}) ------------------------------ ")
                     continue
             elif material.data_type.to_str() == ScanDataType.TG_USER_NAME.to_str():
                 name = material.data
                 if dialog_name == name:
-                    print(f"------------------------------  Found: {dialog_name} (ID {dialog_id}) ------------------------------ ")
+                    print(
+                        f"------------------------------  Found: {dialog_name} (ID {dialog_id}) ------------------------------ ")
                     continue
 
         continue
@@ -114,8 +94,8 @@ async def clean_up_telegram(client, dry_run=False):
 
         if isinstance(chat, (User, Chat)):  # Skip if it's not a chat or user
             print(f"Starting processing chat {dialog_name} (ID {dialog_id})")
-            await clean_chat(chat, client, current_user_id, dialog_id, dialog_name, storage, unwanted_materials,
-                             dry_run=dry_run)
+            await clean_chat(chat, client, current_user_id, dialog_id, dialog_name, storage, scan_data,
+                             config=config)
             storage.mark_dialog_processed(dialog_id, current_user_id)
         elif isinstance(chat, Channel):
             if getattrd(chat, 'broadcast'):
@@ -131,21 +111,16 @@ async def clean_up_telegram(client, dry_run=False):
                 filter_user = current_user
             print(
                 f"Starting processing channel {dialog_name} (ID {dialog_id}), participants count: {participants_count}")
-            await clean_chat(chat, client, current_user_id, dialog_id, dialog_name, storage, unwanted_materials,
-                             from_user=filter_user, dry_run=dry_run)
+            await clean_chat(chat, client, current_user_id, dialog_id, dialog_name, storage, scan_data,
+                             from_user=filter_user, config=config)
             storage.mark_dialog_processed(dialog_id, current_user_id)
 
-        # user_input = input("Type any button to start processing or 's' to proceed to the next one")
-        # if user_input.lower() == 's':
-        #     # processed_cache.update_processed(chat.id, version, getattrd(chat, 'username'), dialog_name, 0, 0)
-        #     continue
 
-
-async def clean_chat(chat, client, current_user_id, dialog_id, dialog_name, storage, unwanted_channels, from_user=None,
-                     dry_run=False):
+async def clean_chat(chat, client, current_user_id, dialog_id, dialog_name, storage, unwanted_channels,
+                     config: TelegramConfig, from_user=None):
     total_messages = 0
     total_deleted = 0
-    async for message in client.iter_messages(chat, from_user=from_user, reverse=True, offset_date=from_date):
+    async for message in client.iter_messages(chat, from_user=from_user, reverse=True, offset_date=config.from_date):
         if message.date.replace(tzinfo=utc) > to_date:
             break
         storage.store_messages([{
@@ -173,12 +148,12 @@ async def clean_chat(chat, client, current_user_id, dialog_id, dialog_name, stor
         f"Cleanup complete for chat: {dialog_name}. Total messages processed: {total_messages}, deleted: {total_deleted}")
 
 
-async def check_message_text(chat, client, message, unwanted_materials: list[ScanData]):
+async def check_message_text(chat, client, message, scan_data: list[ScanData]):
     text = message.text
     if not text or len(text) < 5:
         return 0
 
-    for material in unwanted_materials:
+    for material in scan_data:
         source = material.data_type
         material = material.data
 
@@ -215,7 +190,7 @@ def nullable_int(s):
     return 0
 
 
-async def check_forward_from_unwanted(chat, client, message, unwanted_materials: list[ScanData]):
+async def check_forward_from_unwanted(chat, client, message, scan_data: list[ScanData]):
     forward_from = getattr(message, 'forward', None)
     if forward_from and isinstance(forward_from, Forward):
         chat_username = lower(getattrd(forward_from, "chat.username"))
@@ -223,7 +198,7 @@ async def check_forward_from_unwanted(chat, client, message, unwanted_materials:
         chat_id = nullable_int(getattrd(forward_from, 'chat_id'))
         channel_id = nullable_int(getattrd(forward_from, 'from_id.channel_id'))
 
-        for material in unwanted_materials:
+        for material in scan_data:
             if material.data_type.to_str() == ScanDataType.TG_USERNAME.to_str():
                 username = material.data
                 if chat_username == username or chat_title == username:
@@ -275,11 +250,11 @@ async def prompt_delete_message(chat, client, message, force=False, reason=None,
 async def clean_up_from_db(client):
     current_user = await client.get_me()
     current_user_id = getattr(current_user, 'id')
-    unwanted_materials = load_unwanted_materials(os.path.join(cache_dir, 'unwanted_2.json'))
-    tg_usernames = [item.data.lower() for item in unwanted_materials if
+    scan_data = load_scan_data()
+    tg_usernames = [item.data.lower() for item in scan_data if
                     (item.data_type.to_str() == ScanDataType.TG_USERNAME.to_str())]
     storage = PostgresStorage()
-    mentions = [item.data.lower() for item in unwanted_materials if
+    mentions = [item.data.lower() for item in scan_data if
                 (item.data_type.to_str() == ScanDataType.TG_KEYWORD.to_str())]
 
     total_count = storage.count_messages(current_user_id)
@@ -298,9 +273,9 @@ async def clean_up_from_db(client):
         #     print(message.to_str())
 
 
-async def process(client, phone_number, dry_run=False):
+async def process(client, phone_number, scan_data: list[ScanData], config: TelegramConfig):
     await login(client, phone_number)
-    await clean_up_telegram(client, dry_run)
+    await clean_up_telegram(client, scan_data, config)
 
 
 async def process_from_db(client, phone_number):
@@ -308,11 +283,18 @@ async def process_from_db(client, phone_number):
     await clean_up_from_db(client)
 
 
-if __name__ == "__main__":
-    phone_number = get_phone_number()
-    client = create_client(phone_number)
+async def scan_telegram(scan_data: list[ScanData], config: Config):
+    cache_dir = config.paths.cache_dir
+    phone_number = get_phone_number(cache_dir)
+    client = create_client(phone_number, cache_dir, config.telegram.api_id, config.telegram.api_hash)
     with client:
         client.loop.run_until_complete(
-            process(client, phone_number, dry_run=True)
+            process(client, phone_number, scan_data, config.telegram)
             # process_from_db(client, phone_number)
         )
+
+
+if __name__ == "__main__":
+    config, config_exists = load_config("config.yaml")
+    scan_data = load_scan_data(config)
+    scan_telegram(scan_data, config)

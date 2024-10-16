@@ -3,7 +3,7 @@ import string
 from enum import Enum
 import glob
 
-from cleanup.config.scan_config import load_config
+from cleanup.config.scan_config import load_config, Config
 
 
 class ScanDataType(Enum):
@@ -60,8 +60,7 @@ class ScanData:
         return f"{self.data} ({self.data_type.to_str()})"
 
 
-def load_unwanted_materials() -> list[ScanData]:
-    config, _ = load_config("config.yaml")
+def load_scan_data(config: Config) -> list[ScanData]:
     scan_data_dir = config.paths.scan_data_dir
     suffixes = config.paths.scan_data_suffixes
 
@@ -76,7 +75,7 @@ def load_unwanted_materials() -> list[ScanData]:
         ScanDataType.INSTAGRAM_NAME: suffixes.instagram_names
     }
 
-    unwanted_materials = []
+    scan_data = []
 
     for data_type, suffix in data_files.items():
         pattern = os.path.join(scan_data_dir, f"*{suffix}")
@@ -85,11 +84,12 @@ def load_unwanted_materials() -> list[ScanData]:
                 for line in file:
                     data = line.strip()
                     if data:
-                        unwanted_materials.append(ScanData(data, data_type))
+                        scan_data.append(ScanData(data, data_type))
 
-    return unwanted_materials
+    return scan_data
 
 if __name__ == "__main__":
-    unwanted_materials = load_unwanted_materials()
-    for material in unwanted_materials:
+    config, config_exists = load_config("config.yaml")
+    scan_data = load_scan_data(config)
+    for material in scan_data:
         print(material)

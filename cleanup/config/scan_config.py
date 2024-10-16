@@ -19,6 +19,8 @@ class Config:
 class TelegramConfig:
     def __init__(self):
         self.enabled = True
+        self.api_id = ""
+        self.api_hash = ""
         self.from_date = (datetime.now(timezone.utc) - timedelta(weeks=1)).replace(hour=0, minute=0, second=0, microsecond=0)
         self.to_date = datetime.now(timezone.utc).replace(hour=23, minute=59, second=59, microsecond=999999)
         self.cache_peers = False
@@ -105,7 +107,7 @@ def load_config(filename: str) -> Union[Config, tuple[Config, bool]]:
         with open(filename, 'r') as file:
             data = yaml.safe_load(file)
             if data is None:
-                return config
+                return config, False
 
             paths_data = data.get('paths', {})
             config.paths.cache_dir = paths_data.get('cache_dir', config.paths.cache_dir)
@@ -122,6 +124,8 @@ def load_config(filename: str) -> Union[Config, tuple[Config, bool]]:
 
             telegram_data = data.get('telegram', {})
             config.telegram.enabled = telegram_data.get('enabled', True)
+            config.telegram.api_id = telegram_data.get('api_id', config.telegram.api_id)
+            config.telegram.api_hash = telegram_data.get('api_hash', config.telegram.api_hash)
             config.telegram.from_date = telegram_data.get('from_date', None)
             if isinstance(config.telegram.from_date, str):
                 config.telegram.from_date = datetime.strptime(config.telegram.from_date, '%Y-%m-%d').replace(tzinfo=timezone.utc)
